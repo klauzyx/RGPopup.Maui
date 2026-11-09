@@ -38,7 +38,12 @@ namespace RGPopup.Maui.IOS.Platform
             if (formsElement.InputTransparent)
                 return null!;
 
-            var nativeView = pageHandler?.PlatformView;
+            // The typed PlatformView getter throws "PlatformView cannot be null here" when a touch arrives while the
+            // popup is being torn down (upstream issue #27, PR #28). The untyped IElementHandler one returns null instead.
+            var nativeView = (pageHandler as IElementHandler)?.PlatformView as UIView;
+            if (nativeView == null)
+                return hitTestResult;
+
             var scrollView = formsElement.WrappedContent?.Handler?.PlatformView as UIView;
             var contentView = formsElement.CoreContent?.Handler?.PlatformView as UIView;
             var safePadding = formsElement.SafePadding;
