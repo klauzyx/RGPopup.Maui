@@ -20,8 +20,13 @@ namespace RGPopup.Maui.Droid.Impl
 {
     internal class PopupPlatformDroid : IPopupPlatform
     {
-        private FrameLayout? _decorView = Popup.DecorView;
-        private Page? _mainPage => XApplication.Current?.Windows[0].Page;
+        // The decor view and the main page are resolved on every use, not cached: Android can create a new activity in the same
+        // process (back out and reopen, a theme or locale change, the system destroying the activity) and Popup.Init updates
+        // Popup.Context. A cached decor view belongs to the destroyed activity, popups were added to a detached view and
+        // PostAsync never completed, freezing whoever awaited the push.
+        private static FrameLayout? _decorView => Popup.DecorView;
+        private static Page? _mainPage => (XApplication.Current?.Windows.FirstOrDefault(w => ReferenceEquals(w.Handler?.PlatformView, Popup.Context))
+            ?? XApplication.Current?.Windows.LastOrDefault())?.Page;
         
         public event EventHandler OnInitialized
         {
@@ -122,7 +127,9 @@ namespace RGPopup.Maui.Droid.Impl
 
         private static Task PostAsync(View? nativeView)
         {
-            if (nativeView == null)
+            // A view that is not attached to a window queues the runnable until it is attached, which for the view of a destroyed
+            // activity is never.
+            if (nativeView == null || !nativeView.IsAttachedToWindow)
                 return Task.FromResult(true);
 
             var tcs = new TaskCompletionSource<bool>();
